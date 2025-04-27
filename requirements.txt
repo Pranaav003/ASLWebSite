@@ -1,9 +1,0 @@
-opencv-python
-mediapipe
-streamlit
-numpy
-tensorflow
-pandas
-scikit-learn
-python-dotenv
-openai

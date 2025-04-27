@@ -1,0 +1,22 @@
+<!-- backend/templates/index.html -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Flask ASL API</title>
+</head>
+<body>
+  <h1>Flask ASL Translator Backend</h1>
+  <p>Flash messages and JSON endpoints are live.</p>
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <ul>
+      {% for msg in messages %}
+        <li>{{ msg }}</li>
+      {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+  <p>Use <code>/process_frame</code> to POST your frames and get JSON back.</p>
+</body>
+</html>

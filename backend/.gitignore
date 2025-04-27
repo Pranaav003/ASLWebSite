@@ -1,0 +1,17 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+venv/
+/venv
+.env                 
+*.log
+
+# Flask instance folder
+instance/
+
+# Node / React
+node_modules/
+build/
+.DS_Store
+.env.local
+coverage/
