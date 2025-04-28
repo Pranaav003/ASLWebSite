@@ -1,10 +1,10 @@
 # Python artifacts
 __pycache__/
 *.py[cod]
-venv/
-/venv
-.env                 
+venv/               
+.env               
 *.log
+
 
 # Flask instance folder
 instance/
