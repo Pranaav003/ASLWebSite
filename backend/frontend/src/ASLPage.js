@@ -168,7 +168,7 @@ export default function ASLPage() {
       }}>
         <h3 style={{fontSize:"clamp(1.25rem,3vw,2rem)"}}>Predicted Text:</h3>
         <p style={{
-          fontSize:"clamp(1.5rem,4vw,2rem)",color:"#0f0",margin:"0.5vh 0"
+          fontSize:"clamp(1.5rem,4vw,2rem)",color:"#fff",margin:"0.5vh 0"
         }}>
           {sentenceList.join(" ")||"Waiting…"}
         </p>

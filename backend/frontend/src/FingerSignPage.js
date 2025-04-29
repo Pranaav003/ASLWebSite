@@ -112,7 +112,7 @@ export default function FingerSignPage() {
 
       <div style={{
         marginTop:"2vh", width:"90vw", maxWidth:"960px",
-        background:"#000", color:"#0ff",
+        background:"#000", color:"#fff",
         padding:"1vh", fontSize:"clamp(1rem,2.5vw,1.5rem)",
         borderRadius:"4px", textAlign:"center"
       }}>
