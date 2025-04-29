@@ -17,7 +17,6 @@ export default function ASLPage() {
   const captureRef = useRef(null);
 
   const [sentenceList, setSentenceList] = useState([]);
-  const [latestWord,   setLatestWord]   = useState("");
   const [probs,        setProbs]        = useState([]);
   const [actionsList,  setActionsList]  = useState([]);
   const [lines,        setLines]        = useState([]);
@@ -25,8 +24,7 @@ export default function ASLPage() {
   // 1) Skeleton overlay
   useEffect(() => {
     const holistic = new Holistic({
-      locateFile: (f) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${f}`
+      locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${f}`
     });
     holistic.setOptions({
       modelComplexity:        1,
@@ -38,15 +36,19 @@ export default function ASLPage() {
       selfieMode:            true
     });
     holistic.onResults((results) => {
-      const vid = videoRef.current;
+      const vid    = videoRef.current;
       const canvas = overlayRef.current;
-      const ctx = canvas.getContext("2d");
-      const w = vid.clientWidth, h = vid.clientHeight;
-      canvas.width = w; canvas.height = h;
-      canvas.style.width = `${w}px`; canvas.style.height = `${h}px`;
+      const ctx    = canvas.getContext("2d");
+      const w      = vid.clientWidth;
+      const h      = vid.clientHeight;
+      canvas.width  = w;
+      canvas.height = h;
+      canvas.style.width  = `${w}px`;
+      canvas.style.height = `${h}px`;
       ctx.clearRect(0, 0, w, h);
       ctx.save();
-      ctx.translate(w, 0); ctx.scale(-1, 1);
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
 
       if (results.faceLandmarks) {
         drawConnectors(ctx, results.faceLandmarks, FACEMESH_TESSELATION, { color: "#888", lineWidth: 1 });
@@ -70,41 +72,39 @@ export default function ASLPage() {
     if (videoRef.current) {
       new Camera(videoRef.current, {
         onFrame: async () => { await holistic.send({ image: videoRef.current }); },
-        width: 640, height: 480
+        width:  640,
+        height: 480
       }).start();
     }
   }, []);
 
-  // 2) Gesture inference & client‐side sentence state
+  // 2) Gesture inference & client‐side state
   useEffect(() => {
     let timer;
     const vid = videoRef.current;
-    async function predictLoop() {
+    async function loop() {
       try { await vid.play(); } catch {}
       timer = setInterval(async () => {
-        const W = vid.videoWidth, H = vid.videoHeight;
+        const W = vid.videoWidth;
+        const H = vid.videoHeight;
         const cnv = captureRef.current;
-        cnv.width = W; cnv.height = H;
+        cnv.width  = W;
+        cnv.height = H;
         cnv.getContext("2d").drawImage(vid, 0, 0, W, H);
         const img = cnv.toDataURL("image/jpeg", 0.6);
         const res = await axios.post("/process_frame", { image: img });
         setProbs(res.data.probabilities);
 
-        // parse last word
-        const words = res.data.action.split(" ").filter(Boolean);
-        const wLatest = words[words.length - 1] || "";
-        setLatestWord(wLatest);
-        setSentenceList(prev => {
-          if (!wLatest || prev[prev.length - 1] === wLatest) return prev;
-          return [...prev, wLatest];
-        });
+        // update sentenceList to exactly match model output
+        const actionStr = res.data.action || "";
+        setSentenceList(actionStr.split(" ").filter(Boolean));
       }, 200);
     }
-    predictLoop();
+    loop();
     return () => clearInterval(timer);
   }, []);
 
-  // 3) Load model labels
+  // 3) Load action labels
   useEffect(() => {
     fetch("/actions")
       .then(r => r.json())
@@ -112,7 +112,7 @@ export default function ASLPage() {
       .catch(console.error);
   }, []);
 
-  // 4) Poll ChatGPT with client state
+  // 4) Poll ChatGPT using client state
   useEffect(() => {
     let iv;
     async function fetchSummary() {
@@ -141,7 +141,9 @@ export default function ASLPage() {
       color:      "#fff",
       padding:    "2vw"
     }}>
-      <h1 style={{ margin:0, fontSize:"clamp(1.5rem,4vw,3rem)" }}>AI-ASL Translator</h1>
+      <h1 style={{ margin:0, fontSize:"clamp(1.5rem,4vw,3rem)" }}>
+        AI-ASL Translator
+      </h1>
       <h2 style={{
         fontWeight:400,
         fontSize:  "clamp(1rem,2.5vw,1.5rem)",
@@ -167,7 +169,9 @@ export default function ASLPage() {
       <div style={{
         marginTop:"2vh", width:"90vw", maxWidth:"960px", margin:"auto"
       }}>
-        <h3 style={{ fontSize:"clamp(1.25rem,3vw,2rem)" }}>Predicted Text:</h3>
+        <h3 style={{ fontSize:"clamp(1.25rem,3vw,2rem)" }}>
+          Predicted Text:
+        </h3>
         <p style={{
           fontSize:"clamp(1.5rem,4vw,2rem)",
           color:"#0f0", margin:"0.5vh 0"
@@ -175,7 +179,7 @@ export default function ASLPage() {
           {sentenceList.join(" ") || "Waiting…"}
         </p>
         <p style={{ color:"#bbb" }}>
-          [{probs.map(p=>p.toFixed(2)).join(", ")}]
+          [{probs.map(p => p.toFixed(2)).join(", ")}]
         </p>
       </div>
 
@@ -183,16 +187,24 @@ export default function ASLPage() {
         marginTop:"4vh", width:"90vw", maxWidth:"900px", margin:"auto"
       }}>
         <h3 style={{
-          fontSize:"clamp(1.25rem,3vw,2rem)", marginBottom:"1vh"
-        }}>💡 Suggestions:</h3>
-        {lines.length>0
-          ? lines.map((l,i)=><p key={i} style={{
+          fontSize:    "clamp(1.25rem,3vw,2rem)",
+          marginBottom:"1vh"
+        }}>
+          💡 Suggestions:
+        </h3>
+        {lines.length > 0 ? (
+          lines.map((l,i) => (
+            <p key={i} style={{
               fontSize:"clamp(1rem,2.5vw,1.25rem)", margin:"0.5vh 0"
-            }}>{l}</p>)
-          : <p style={{ fontSize:"clamp(1rem,2.5vw,1.25rem)" }}>
-              Waiting for suggestions…
+            }}>
+              {l}
             </p>
-        }
+          ))
+        ) : (
+          <p style={{ fontSize:"clamp(1rem,2.5vw,1.25rem)" }}>
+            Waiting for suggestions…
+          </p>
+        )}
       </div>
     </div>
   );

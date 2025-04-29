@@ -11,7 +11,7 @@ import test_finger
 app = Flask(
     __name__,
     static_folder="frontend/build",
-    static_url_path=""    # serve React
+    static_url_path=""    # serve React at /
 )
 CORS(app)
 
@@ -30,14 +30,13 @@ def process_frame():
         _, img_data = img_data.split(",", 1)
 
     try:
-        img = base64.b64decode(img_data)
-        arr = np.frombuffer(img, np.uint8)
-        frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        img_bytes = base64.b64decode(img_data)
+        arr       = np.frombuffer(img_bytes, np.uint8)
+        frame     = cv2.imdecode(arr, cv2.IMREAD_COLOR)
         if frame is None:
             raise ValueError("Could not decode frame")
 
         _, probs, sentence_list = run_test_on_frame(frame)
-        # return the full sentence string
         return jsonify({
             "probabilities": probs.tolist(),
             "action": " ".join(sentence_list)
@@ -60,18 +59,17 @@ def process_finger_frame():
         _, img_data = img_data.split(",", 1)
 
     try:
-        img = base64.b64decode(img_data)
-        arr = np.frombuffer(img, np.uint8)
-        frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        img_bytes = base64.b64decode(img_data)
+        arr       = np.frombuffer(img_bytes, np.uint8)
+        frame     = cv2.imdecode(arr, cv2.IMREAD_COLOR)
         if frame is None:
             raise ValueError("Could not decode frame")
 
         # Reset server-side finger state so each request is fresh
-        test_finger.SENTENCE = []
+        test_finger.SENTENCE  = []
         test_finger.LAST_TIME = 0.0
 
         _, sentence_list = test_finger.run_finger_on_frame(frame)
-        # return only the latest character or empty
         char = sentence_list[-1] if sentence_list else ""
         return jsonify({ "action": char })
     except Exception as e:
