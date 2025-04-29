@@ -9,7 +9,7 @@ export default function FingerSignPage() {
   const captureRef = useRef(null);
   const [sentenceList, setSentenceList] = useState([]);
 
-  // 1) Bounding-box overlay
+  // Bounding‐box overlay
   useEffect(() => {
     const hands = new Hands({
       locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
@@ -36,16 +36,16 @@ export default function FingerSignPage() {
 
       if (results.multiHandLandmarks?.length) {
         const lm   = results.multiHandLandmarks[0];
-        const xs   = lm.map(pt=>pt.x*w);
-        const ys   = lm.map(pt=>pt.y*h);
+        const xs   = lm.map(pt => pt.x * w);
+        const ys   = lm.map(pt => pt.y * h);
         const xMin = Math.min(...xs), xMax = Math.max(...xs);
         const yMin = Math.min(...ys), yMax = Math.max(...ys);
         const pad  = 10;
         ctx.strokeStyle="#0ff"; ctx.lineWidth=4;
         ctx.strokeRect(
-          xMin-pad, yMin-pad,
-          (xMax-xMin)+pad*2,
-          (yMax-yMin)+pad*2
+          xMin - pad, yMin - pad,
+          (xMax - xMin) + pad*2,
+          (yMax - yMin) + pad*2
         );
       }
 
@@ -54,31 +54,34 @@ export default function FingerSignPage() {
 
     if (videoRef.current) {
       new Camera(videoRef.current, {
-        onFrame: async ()=>await hands.send({ image: videoRef.current }),
+        onFrame: async () => await hands.send({ image: videoRef.current }),
         width:640, height:480
       }).start();
     }
   }, []);
 
-  // 2) Finger inference + client‐state
+  // Finger inference (downsampled)
   useEffect(() => {
     let timer;
     const vid = videoRef.current;
     async function loop() {
       try { await vid.play(); } catch {}
       timer = setInterval(async () => {
-        const W = vid.videoWidth, H = vid.videoHeight;
+        const W = 320;
+        const H = vid.videoHeight * (320 / vid.videoWidth);
         const cnv = captureRef.current;
-        cnv.width = W; cnv.height = H;
+        cnv.width  = W; cnv.height = H;
         cnv.getContext("2d").drawImage(vid, 0, 0, W, H);
         const img = cnv.toDataURL("image/jpeg", 0.6);
         const res = await axios.post("/process_finger_frame", { image: img });
         const char = res.data.action || "";
-        setSentenceList(prev => prev[prev.length-1] === char ? prev : [...prev, char]);
-      }, 200);
+        setSentenceList(prev =>
+          prev[prev.length-1] === char ? prev : [...prev, char]
+        );
+      }, 300);
     }
     loop();
-    return ()=>clearInterval(timer);
+    return () => clearInterval(timer);
   }, []);
 
   return (

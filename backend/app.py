@@ -25,7 +25,6 @@ ASL_CLIENTS = {}  # client_id -> {"sequence","predictions","sentence","holistic"
 def get_client_state(client_id):
     state = ASL_CLIENTS.get(client_id)
     if not state:
-        # new client: fresh buffers
         state = {
             "sequence":   deque(maxlen=SEQ_LENGTH),
             "predictions":[],
@@ -63,14 +62,11 @@ def process_frame():
         if frame is None:
             raise ValueError("Could not decode frame")
 
-        # per-client state
         state = get_client_state(client_id)
-        # Mediapipe detection
         image, results = mediapipe_detection(frame, state["holistic"])
         if results:
             draw_styled_landmarks(image, results)
 
-        # extract keypoints and update sequence
         keypoints = extract_keypoints(results) if results else np.zeros(1662)
         state["sequence"].append(keypoints)
 
@@ -111,14 +107,12 @@ def process_finger_frame():
         _, img_data = img_data.split(",",1)
 
     try:
-        # decode image
         img_bytes = base64.b64decode(img_data)
         arr       = np.frombuffer(img_bytes, np.uint8)
         frame     = cv2.imdecode(arr, cv2.IMREAD_COLOR)
         if frame is None:
             raise ValueError("Could not decode frame")
 
-        # reset finger state so each call stateless
         test_finger.SENTENCE  = []
         test_finger.LAST_TIME = 0.0
 

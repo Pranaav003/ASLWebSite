@@ -9,7 +9,6 @@ import {
 import { drawConnectors, drawLandmarks } from "@mediapipe/drawing_utils";
 import { Camera } from "@mediapipe/camera_utils";
 
-// generate or persist a client ID
 function useClientId() {
   const [id] = useState(() => {
     let v = localStorage.getItem("clientId");
@@ -23,17 +22,17 @@ function useClientId() {
 }
 
 export default function ASLPage() {
-  const clientId   = useClientId();
-  const videoRef   = useRef(null);
-  const overlayRef = useRef(null);
-  const captureRef = useRef(null);
+  const clientId    = useClientId();
+  const videoRef    = useRef(null);
+  const overlayRef  = useRef(null);
+  const captureRef  = useRef(null);
 
   const [sentenceList, setSentenceList] = useState([]);
   const [probs,        setProbs]        = useState([]);
   const [actionsList,  setActionsList]  = useState([]);
   const [lines,        setLines]        = useState([]);
 
-  // 1) Mediapipe skeleton overlay
+  // Skeleton overlay
   useEffect(() => {
     const holistic = new Holistic({
       locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${f}`
@@ -50,9 +49,9 @@ export default function ASLPage() {
     holistic.onResults((results) => {
       const vid = videoRef.current;
       const canvas = overlayRef.current;
-      const ctx    = canvas.getContext("2d");
-      const w      = vid.clientWidth;
-      const h      = vid.clientHeight;
+      const ctx = canvas.getContext("2d");
+      const w = vid.clientWidth;
+      const h = vid.clientHeight;
       canvas.width  = w; canvas.height = h;
       canvas.style.width  = `${w}px`;
       canvas.style.height = `${h}px`;
@@ -65,54 +64,53 @@ export default function ASLPage() {
       }
       if (results.poseLandmarks) {
         drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, { color:"#0f0", lineWidth:4 });
-        drawLandmarks (ctx, results.poseLandmarks, { color:"#f00", lineWidth:2 });
+        drawLandmarks(ctx, results.poseLandmarks, { color:"#f00", lineWidth:2 });
       }
       if (results.leftHandLandmarks) {
         drawConnectors(ctx, results.leftHandLandmarks, HAND_CONNECTIONS, { color:"#c00", lineWidth:5 });
-        drawLandmarks (ctx, results.leftHandLandmarks, { color:"#0f0", lineWidth:2 });
+        drawLandmarks(ctx, results.leftHandLandmarks, { color:"#0f0", lineWidth:2 });
       }
       if (results.rightHandLandmarks) {
         drawConnectors(ctx, results.rightHandLandmarks, HAND_CONNECTIONS, { color:"#00c", lineWidth:5 });
-        drawLandmarks (ctx, results.rightHandLandmarks, { color:"#0f0", lineWidth:2 });
+        drawLandmarks(ctx, results.rightHandLandmarks, { color:"#0f0", lineWidth:2 });
       }
-
       ctx.restore();
     });
 
     if (videoRef.current) {
       new Camera(videoRef.current, {
-        onFrame: async () => { await holistic.send({ image: videoRef.current }); },
+        onFrame: async () => await holistic.send({ image: videoRef.current }),
         width: 640, height: 480
       }).start();
     }
   }, []);
 
-  // 2) Gesture inference per‐client
+  // Gesture inference (downscaled to 320px)
   useEffect(() => {
     let timer;
     const vid = videoRef.current;
     async function loop() {
       try { await vid.play(); } catch {}
       timer = setInterval(async () => {
-        const W = vid.videoWidth, H = vid.videoHeight;
+        const W = 320;
+        const H = vid.videoHeight * (320 / vid.videoWidth);
         const cnv = captureRef.current;
-        cnv.width = W; cnv.height = H;
+        cnv.width  = W; cnv.height = H;
         cnv.getContext("2d").drawImage(vid, 0, 0, W, H);
         const img = cnv.toDataURL("image/jpeg", 0.6);
-
         const res = await axios.post("/process_frame", {
           image: img,
           clientId
         });
         setProbs(res.data.probabilities);
         setSentenceList(res.data.action.split(" ").filter(Boolean));
-      }, 200);
+      }, 300);
     }
     loop();
     return () => clearInterval(timer);
   }, [clientId]);
 
-  // 3) Load labels
+  // Load labels
   useEffect(() => {
     fetch("/actions")
       .then(r => r.json())
@@ -120,13 +118,13 @@ export default function ASLPage() {
       .catch(console.error);
   }, []);
 
-  // 4) Poll summary with client sentences
+  // Poll ChatGPT
   useEffect(() => {
     let iv;
     async function fetchSummary() {
       const res = await fetch("/summary", {
-        method: "POST",
-        headers: { "Content-Type":"application/json" },
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
         body: JSON.stringify({ sentences: sentenceList })
       });
       const { summary } = await res.json();
@@ -136,7 +134,7 @@ export default function ASLPage() {
     }
     fetchSummary();
     iv = setInterval(fetchSummary, 5000);
-    return () => clearInterval(iv);
+    return ()=>clearInterval(iv);
   }, [sentenceList]);
 
   return (
