@@ -3,9 +3,8 @@
 import React, { useRef, useEffect, useState } from "react";
 import axios from "axios";
 
-// Mediapipe Hands + drawing & camera utils
-import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
-import { drawConnectors, drawLandmarks } from "@mediapipe/drawing_utils";
+// Mediapipe Hands & camera utils (no drawing-utils needed for just a box)
+import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
 export default function FingerSignPage() {
@@ -14,10 +13,10 @@ export default function FingerSignPage() {
   const captureRef  = useRef(null);
   const [sentence, setSentence] = useState("");
 
-  // 1) MediaPipe Hands overlay with horizontal flip correction
+  // 1) MediaPipe Hands overlay with horizontal flip and bounding box
   useEffect(() => {
     const hands = new Hands({
-      locateFile: (file) => 
+      locateFile: (file) =>
         `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
     hands.setOptions({
@@ -70,14 +69,13 @@ export default function FingerSignPage() {
     });
 
     if (videoRef.current) {
-      const camera = new Camera(videoRef.current, {
+      new Camera(videoRef.current, {
         onFrame: async () => {
           await hands.send({ image: videoRef.current });
         },
         width:  640,
         height: 480
-      });
-      camera.start();
+      }).start();
     }
   }, []);
 
@@ -123,7 +121,7 @@ export default function FingerSignPage() {
       minHeight:     "100vh",
       boxSizing:     "border-box"
     }}>
-      <h1 style={{ margin:0, fontSize:"clamp(1.5rem,4vw,3rem)", color: "#fff" }}>
+      <h1 style={{ margin:0, fontSize:"clamp(1.5rem,4vw,3rem)" }}>
         ASL Finger-Sign Translator
       </h1>
 
@@ -136,9 +134,9 @@ export default function FingerSignPage() {
         <video
           ref={videoRef}
           style={{
-            width:       "90vw",
-            maxWidth:    "960px",
-            borderRadius:"8px"
+            width:        "90vw",
+            maxWidth:     "960px",
+            borderRadius: "8px"
           }}
           playsInline
           muted
@@ -163,25 +161,13 @@ export default function FingerSignPage() {
         width:        "90vw",
         maxWidth:     "960px",
         background:   "#000",
-        color:        "#fff",
+        color:        "#0ff",
         padding:      "1vh",
         fontSize:     "clamp(1rem,2.5vw,1.5rem)",
         borderRadius: "4px",
         textAlign:    "center"
       }}>
         {sentence || "Waiting for finger-sign…"}
-      </div>
-      <div style={{ marginTop: 40, fontSize: "clamp(0.875rem, 2vw, 1.1rem)" }}>
-        Made with ❤️
-      </div>
-      <div style={{ fontSize: "clamp(0.875rem, 2vw, 1.1rem)" }}>
-        Pranaav Iyer, Michael Nguyen, Oscar Primitivo, Nick Everett, Griffin Collins
-      </div>
-      <div style={{ marginTop: 10, fontSize: "clamp(0.875rem, 2vw, 1.1rem)" }}>
-        Reach out: @pranaav.iyer@gmail.com
-      </div>
-      <div style={{ marginTop: 10, fontSize: "clamp(0.875rem, 2vw, 1.1rem)" }}>
-        Connect with us: https://www.linkedin.com/in/pranaav-iyer/
       </div>
     </div>
   );
