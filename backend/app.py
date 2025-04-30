@@ -4,11 +4,12 @@ import cv2
 import numpy as np
 from flask           import Flask, request, jsonify, send_from_directory
 from flask_cors      import CORS
+from collections     import deque
+
 from init_1          import mediapipe_detection, draw_styled_landmarks, extract_keypoints, mp_holistic
 from test_5          import model, actions as MODEL_ACTIONS
 from test_gpt        import generate_summary
 import test_finger
-from collections      import deque
 
 app = Flask(
     __name__,
@@ -17,22 +18,26 @@ app = Flask(
 )
 CORS(app)
 
-# Per-client ASL state
+# ASL buffering parameters
 SEQ_LENGTH = 30
 SMOOTH_WIN = 10
-ASL_CLIENTS = {}  # client_id -> {"sequence","predictions","sentence","holistic"}
+
+# Per-client in-memory state
+ASL_CLIENTS = {}  # client_id → { sequence, predictions, sentence, holistic, last_probs }
 
 def get_client_state(client_id):
     state = ASL_CLIENTS.get(client_id)
     if not state:
         state = {
-            "sequence":   deque(maxlen=SEQ_LENGTH),
-            "predictions":[],
-            "sentence":   [],
-            "holistic":   mp_holistic.Holistic(
-                              static_image_mode=True,
-                              min_detection_confidence=0.5,
-                              min_tracking_confidence=0.5)
+            "sequence":    deque(maxlen=SEQ_LENGTH),
+            "predictions": [],
+            "sentence":    [],
+            "last_probs":  [],
+            "holistic":    mp_holistic.Holistic(
+                                static_image_mode=True,
+                                min_detection_confidence=0.5,
+                                min_tracking_confidence=0.5
+                            )
         }
         ASL_CLIENTS[client_id] = state
     return state
@@ -49,9 +54,20 @@ def process_frame():
     data      = request.get_json(force=True)
     client_id = data.get("clientId")
     img_data  = data.get("image", "")
+
     if not client_id:
         return jsonify(error="Missing clientId"), 400
 
+    state = get_client_state(client_id)
+
+    # Guard: if no image payload, return last known state
+    if not img_data or not isinstance(img_data, str):
+        return jsonify({
+            "probabilities": state["last_probs"],
+            "action":        " ".join(state["sentence"])
+        }), 200
+
+    # Strip prefix
     if "," in img_data:
         _, img_data = img_data.split(",", 1)
 
@@ -62,38 +78,49 @@ def process_frame():
         if frame is None:
             raise ValueError("Could not decode frame")
 
-        state = get_client_state(client_id)
+        # Run Mediapipe + draw
         image, results = mediapipe_detection(frame, state["holistic"])
         if results:
             draw_styled_landmarks(image, results)
 
+        # Extract keypoints
         keypoints = extract_keypoints(results) if results else np.zeros(1662)
         state["sequence"].append(keypoints)
 
+        # Default empty probs
         probs = np.zeros(len(MODEL_ACTIONS))
+
+        # Once buffer full, predict
         if len(state["sequence"]) == SEQ_LENGTH:
-            preds = model.predict(np.expand_dims(state["sequence"], axis=0))[0]
-            idx   = int(np.argmax(preds))
+            preds = model.predict(
+                np.expand_dims(state["sequence"], axis=0)
+            )[0]
+            idx = int(np.argmax(preds))
             state["predictions"].append(idx)
 
-            if (len(state["predictions"]) >= SMOOTH_WIN and
-                state["predictions"][-SMOOTH_WIN:].count(idx) == SMOOTH_WIN and
-                preds[idx] > 0.8):
+            # Smoothing + threshold
+            if (len(state["predictions"]) >= SMOOTH_WIN
+                and state["predictions"][-SMOOTH_WIN:].count(idx) == SMOOTH_WIN
+                and preds[idx] > 0.8):
                 word = MODEL_ACTIONS[idx]
                 if not state["sentence"] or state["sentence"][-1] != word:
                     state["sentence"].append(word)
             probs = preds
 
+        # Save for fallback
+        state["last_probs"] = probs.tolist()
+
         return jsonify({
             "probabilities": probs.tolist(),
-            "action": " ".join(state["sentence"])
+            "action":        " ".join(state["sentence"])
         })
 
     except Exception as e:
+        # On error, fall back to last known values
         print("❌ /process_frame error:", e)
         return jsonify({
-            "probabilities": [],
-            "action": ""
+            "probabilities": state["last_probs"],
+            "action":        " ".join(state["sentence"])
         }), 200
 
 @app.route("/process_finger_frame", methods=["OPTIONS", "POST"])
@@ -113,6 +140,7 @@ def process_finger_frame():
         if frame is None:
             raise ValueError("Could not decode frame")
 
+        # Each call stateless
         test_finger.SENTENCE  = []
         test_finger.LAST_TIME = 0.0
 
