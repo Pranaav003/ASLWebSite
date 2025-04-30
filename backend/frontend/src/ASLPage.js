@@ -32,7 +32,7 @@ export default function ASLPage() {
   const [actionsList,  setActionsList]  = useState([]);
   const [lines,        setLines]        = useState([]);
 
-  // 1) Mediapipe skeleton overlay
+  // Skeleton overlay
   useEffect(() => {
     const holistic = new Holistic({
       locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${f}`
@@ -47,10 +47,11 @@ export default function ASLPage() {
       selfieMode:            true
     });
     holistic.onResults((results) => {
-      const vid    = videoRef.current;
+      const vid = videoRef.current;
       const canvas = overlayRef.current;
-      const ctx    = canvas.getContext("2d");
-      const w = vid.clientWidth, h = vid.clientHeight;
+      const ctx = canvas.getContext("2d");
+      const w = vid.clientWidth;
+      const h = vid.clientHeight;
       canvas.width  = w; canvas.height = h;
       canvas.style.width  = `${w}px`;
       canvas.style.height = `${h}px`;
@@ -73,7 +74,6 @@ export default function ASLPage() {
         drawConnectors(ctx, results.rightHandLandmarks, HAND_CONNECTIONS, { color:"#00c", lineWidth:5 });
         drawLandmarks(ctx, results.rightHandLandmarks, { color:"#0f0", lineWidth:2 });
       }
-
       ctx.restore();
     });
 
@@ -85,39 +85,32 @@ export default function ASLPage() {
     }
   }, []);
 
-  // 2) Gesture inference with append-only logic
+  // Gesture inference (downscaled to 320px)
   useEffect(() => {
     let timer;
     const vid = videoRef.current;
-    async function startLoop() {
+    async function loop() {
       try { await vid.play(); } catch {}
       timer = setInterval(async () => {
-        // downsample to 320px
         const W = 320;
-        const H = vid.videoHeight * (W / vid.videoWidth);
+        const H = vid.videoHeight * (320 / vid.videoWidth);
         const cnv = captureRef.current;
         cnv.width  = W; cnv.height = H;
         cnv.getContext("2d").drawImage(vid, 0, 0, W, H);
         const img = cnv.toDataURL("image/jpeg", 0.6);
-
         const res = await axios.post("/process_frame", {
           image: img,
           clientId
         });
         setProbs(res.data.probabilities);
-
-        const serverWords = res.data.action.split(" ").filter(Boolean);
-        setSentenceList(prev => {
-          if (serverWords.length <= prev.length) return prev;
-          return [...prev, ...serverWords.slice(prev.length)];
-        });
-      }, 500);
+        setSentenceList(res.data.action.split(" ").filter(Boolean));
+      }, 300);
     }
-    startLoop();
+    loop();
     return () => clearInterval(timer);
   }, [clientId]);
 
-  // 3) Load labels
+  // Load labels
   useEffect(() => {
     fetch("/actions")
       .then(r => r.json())
@@ -125,30 +118,29 @@ export default function ASLPage() {
       .catch(console.error);
   }, []);
 
-  // 4) Poll ChatGPT
+  // Poll ChatGPT
   useEffect(() => {
     let iv;
     async function fetchSummary() {
       const res = await fetch("/summary", {
-        method:  "POST",
-        headers: { "Content-Type":"application/json" },
-        body:    JSON.stringify({ sentences: sentenceList })
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ sentences: sentenceList })
       });
       const { summary } = await res.json();
-      const parsed = (summary||"").split("\n")
-        .map(l=>l.trim())
-        .filter(l=>/^\d+\.\s*/.test(l));
+      const parsed = (summary||"")
+        .split("\n").map(l=>l.trim()).filter(l=>/^\d+\.\s*/.test(l));
       setLines(parsed);
     }
     fetchSummary();
     iv = setInterval(fetchSummary, 5000);
-    return () => clearInterval(iv);
+    return ()=>clearInterval(iv);
   }, [sentenceList]);
 
   return (
     <div style={{
-      position:"relative", textAlign:"center",
-      background:"#111", color:"#fff", padding:"2vw"
+      position:"relative", textAlign:"center", background:"#111",
+      color:"#fff", padding:"2vw"
     }}>
       <h1 style={{margin:0,fontSize:"clamp(1.5rem,4vw,3rem)"}}>AI-ASL Translator</h1>
       <h2 style={{
@@ -158,11 +150,15 @@ export default function ASLPage() {
       </h2>
 
       <div style={{position:"relative",display:"inline-block",marginTop:"2vh"}}>
-        <video ref={videoRef}
-               style={{width:"90vw",maxWidth:"960px",borderRadius:"8px"}}
-               playsInline muted />
-        <canvas ref={overlayRef}
-                style={{position:"absolute",top:0,left:0,pointerEvents:"none"}}/>
+        <video
+          ref={videoRef}
+          style={{width:"90vw",maxWidth:"960px",borderRadius:"8px"}}
+          playsInline muted
+        />
+        <canvas
+          ref={overlayRef}
+          style={{position:"absolute",top:0,left:0,pointerEvents:"none"}}
+        />
       </div>
 
       <canvas ref={captureRef} style={{display:"none"}}/>
@@ -172,8 +168,7 @@ export default function ASLPage() {
       }}>
         <h3 style={{fontSize:"clamp(1.25rem,3vw,2rem)"}}>Predicted Text:</h3>
         <p style={{
-          fontSize:"clamp(1.5rem,4vw,2rem)",
-          color:"#fff",margin:"0.5vh 0"
+          fontSize:"clamp(1.5rem,4vw,2rem)",color:"#fff",margin:"0.5vh 0"
         }}>
           {sentenceList.join(" ")||"Waiting…"}
         </p>
@@ -186,8 +181,7 @@ export default function ASLPage() {
         marginTop:"4vh",width:"90vw",maxWidth:"900px",margin:"auto"
       }}>
         <h3 style={{
-          fontSize:"clamp(1.25rem,3vw,2rem)",
-          marginBottom:"1vh"
+          fontSize:"clamp(1.25rem,3vw,2rem)",marginBottom:"1vh"
         }}>💡 Suggestions:</h3>
         {lines.length>0
           ? lines.map((l,i)=><p key={i} style={{

@@ -23,7 +23,7 @@ SEQ_LENGTH = 30
 SMOOTH_WIN = 10
 
 # Per-client in-memory state
-ASL_CLIENTS = {}  # client_id → { sequence, predictions, sentence, holistic, last_probs }
+ASL_CLIENTS = {}  # client_id → { sequence, predictions, sentence, last_probs, holistic }
 
 def get_client_state(client_id):
     state = ASL_CLIENTS.get(client_id)
@@ -51,7 +51,7 @@ def process_frame():
     if request.method == "OPTIONS":
         return "", 200
 
-    data      = request.get_json(force=True)
+    data     = request.get_json(force=True)
     client_id = data.get("clientId")
     img_data  = data.get("image", "")
 
@@ -60,37 +60,36 @@ def process_frame():
 
     state = get_client_state(client_id)
 
-    # Guard: if no image payload, return last known state
-    if not img_data or not isinstance(img_data, str):
+    # — EARLY GUARD: if no image payload, re-return last known state —
+    if not isinstance(img_data, str) or not img_data.strip():
         return jsonify({
             "probabilities": state["last_probs"],
             "action":        " ".join(state["sentence"])
         }), 200
 
-    # Strip prefix
+    # Strip the base64 header if present
     if "," in img_data:
         _, img_data = img_data.split(",", 1)
 
     try:
+        # Decode the image
         img_bytes = base64.b64decode(img_data)
         arr       = np.frombuffer(img_bytes, np.uint8)
         frame     = cv2.imdecode(arr, cv2.IMREAD_COLOR)
         if frame is None:
             raise ValueError("Could not decode frame")
 
-        # Run Mediapipe + draw
+        # Mediapipe detection & drawing
         image, results = mediapipe_detection(frame, state["holistic"])
         if results:
             draw_styled_landmarks(image, results)
 
-        # Extract keypoints
+        # Extract keypoints & update sequence
         keypoints = extract_keypoints(results) if results else np.zeros(1662)
         state["sequence"].append(keypoints)
 
-        # Default empty probs
+        # Default empty probabilities
         probs = np.zeros(len(MODEL_ACTIONS))
-
-        # Once buffer full, predict
         if len(state["sequence"]) == SEQ_LENGTH:
             preds = model.predict(
                 np.expand_dims(state["sequence"], axis=0)
@@ -98,10 +97,12 @@ def process_frame():
             idx = int(np.argmax(preds))
             state["predictions"].append(idx)
 
-            # Smoothing + threshold
-            if (len(state["predictions"]) >= SMOOTH_WIN
+            # Smoothing + threshold logic
+            if (
+                len(state["predictions"]) >= SMOOTH_WIN
                 and state["predictions"][-SMOOTH_WIN:].count(idx) == SMOOTH_WIN
-                and preds[idx] > 0.8):
+                and preds[idx] > 0.8
+            ):
                 word = MODEL_ACTIONS[idx]
                 if not state["sentence"] or state["sentence"][-1] != word:
                     state["sentence"].append(word)
@@ -113,10 +114,10 @@ def process_frame():
         return jsonify({
             "probabilities": probs.tolist(),
             "action":        " ".join(state["sentence"])
-        })
+        }), 200
 
     except Exception as e:
-        # On error, fall back to last known values
+        # On error, do not clear old sentence – just return last known
         print("❌ /process_frame error:", e)
         return jsonify({
             "probabilities": state["last_probs"],
@@ -129,9 +130,9 @@ def process_finger_frame():
         return "", 200
 
     data     = request.get_json(force=True)
-    img_data = data.get("image","")
+    img_data = data.get("image", "")
     if "," in img_data:
-        _, img_data = img_data.split(",",1)
+        _, img_data = img_data.split(",", 1)
 
     try:
         img_bytes = base64.b64decode(img_data)
@@ -140,13 +141,13 @@ def process_finger_frame():
         if frame is None:
             raise ValueError("Could not decode frame")
 
-        # Each call stateless
+        # Stateless call for finger-sign
         test_finger.SENTENCE  = []
         test_finger.LAST_TIME = 0.0
 
         _, sentence_list = test_finger.run_finger_on_frame(frame)
         char = sentence_list[-1] if sentence_list else ""
-        return jsonify({ "action": char })
+        return jsonify({ "action": char }), 200
 
     except Exception as e:
         print("❌ /process_finger_frame error:", e)
@@ -161,7 +162,7 @@ def summary():
     except Exception as e:
         print("❌ /summary error:", e)
         text = ""
-    return jsonify(summary=text)
+    return jsonify(summary=text), 200
 
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
@@ -172,5 +173,5 @@ def serve_spa(path):
     return send_from_directory(app.static_folder, "index.html")
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT","5001"))
+    port = int(os.getenv("PORT", "5001"))
     app.run(host="0.0.0.0", port=port, debug=True)
