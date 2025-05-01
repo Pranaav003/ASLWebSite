@@ -1,3 +1,5 @@
+# backend/app.py
+
 import os
 import base64
 import cv2
@@ -18,12 +20,12 @@ app = Flask(
 )
 CORS(app)
 
-# ASL buffering parameters
+# ── ASL buffering parameters ──────────────────────────────────────────────
 SEQ_LENGTH = 30
 SMOOTH_WIN = 10
 
 # Per-client in-memory state
-ASL_CLIENTS = {}  # client_id → { sequence, predictions, sentence, last_probs, holistic }
+ASL_CLIENTS = {}  # client_id → {sequence, predictions, sentence, last_probs, holistic}
 
 def get_client_state(client_id):
     state = ASL_CLIENTS.get(client_id)
@@ -46,49 +48,51 @@ def get_client_state(client_id):
 def get_actions():
     return jsonify(actions=MODEL_ACTIONS.tolist())
 
-@app.route("/process_frame", methods=["OPTIONS", "POST"])
+@app.route("/process_frame", methods=["OPTIONS","POST"])
 def process_frame():
     if request.method == "OPTIONS":
         return "", 200
 
-    data     = request.get_json(force=True)
+    data      = request.get_json(force=True)
     client_id = data.get("clientId")
     img_data  = data.get("image", "")
 
     if not client_id:
         return jsonify(error="Missing clientId"), 400
 
+    # Get (or create) this client's ASL state
     state = get_client_state(client_id)
 
-    # — EARLY GUARD: if no image payload, re-return last known state —
+    # ── EARLY GUARD ──
+    # If there's no valid image payload, immediately re-return the last known results
     if not isinstance(img_data, str) or not img_data.strip():
         return jsonify({
             "probabilities": state["last_probs"],
             "action":        " ".join(state["sentence"])
         }), 200
 
-    # Strip the base64 header if present
+    # Strip off the "data:image/..." prefix if present
     if "," in img_data:
         _, img_data = img_data.split(",", 1)
 
     try:
-        # Decode the image
+        # Decode the base64 JPEG
         img_bytes = base64.b64decode(img_data)
         arr       = np.frombuffer(img_bytes, np.uint8)
         frame     = cv2.imdecode(arr, cv2.IMREAD_COLOR)
         if frame is None:
             raise ValueError("Could not decode frame")
 
-        # Mediapipe detection & drawing
+        # Mediapipe detection + drawing (optional)
         image, results = mediapipe_detection(frame, state["holistic"])
         if results:
             draw_styled_landmarks(image, results)
 
-        # Extract keypoints & update sequence
+        # Extract keypoints & push into buffer
         keypoints = extract_keypoints(results) if results else np.zeros(1662)
         state["sequence"].append(keypoints)
 
-        # Default empty probabilities
+        # Default zero‐probs until the buffer fills
         probs = np.zeros(len(MODEL_ACTIONS))
         if len(state["sequence"]) == SEQ_LENGTH:
             preds = model.predict(
@@ -108,7 +112,7 @@ def process_frame():
                     state["sentence"].append(word)
             probs = preds
 
-        # Save for fallback
+        # Cache for the next empty‐payload call
         state["last_probs"] = probs.tolist()
 
         return jsonify({
@@ -117,22 +121,22 @@ def process_frame():
         }), 200
 
     except Exception as e:
-        # On error, do not clear old sentence – just return last known
+        # On **any** error, don’t wipe out the sentence—return the last known state
         print("❌ /process_frame error:", e)
         return jsonify({
             "probabilities": state["last_probs"],
             "action":        " ".join(state["sentence"])
         }), 200
 
-@app.route("/process_finger_frame", methods=["OPTIONS", "POST"])
+@app.route("/process_finger_frame", methods=["OPTIONS","POST"])
 def process_finger_frame():
     if request.method == "OPTIONS":
         return "", 200
 
     data     = request.get_json(force=True)
-    img_data = data.get("image", "")
+    img_data = data.get("image","")
     if "," in img_data:
-        _, img_data = img_data.split(",", 1)
+        _, img_data = img_data.split(",",1)
 
     try:
         img_bytes = base64.b64decode(img_data)
@@ -141,7 +145,7 @@ def process_finger_frame():
         if frame is None:
             raise ValueError("Could not decode frame")
 
-        # Stateless call for finger-sign
+        # Stateless fingersign call
         test_finger.SENTENCE  = []
         test_finger.LAST_TIME = 0.0
 
@@ -173,5 +177,5 @@ def serve_spa(path):
     return send_from_directory(app.static_folder, "index.html")
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", "5001"))
+    port = int(os.getenv("PORT","5001"))
     app.run(host="0.0.0.0", port=port, debug=True)
