@@ -8,152 +8,96 @@ export default function FingerSignPage() {
   const overlayRef = useRef(null);
   const captureRef = useRef(null);
   const [sentenceList, setSentenceList] = useState([]);
+  const lastCharRef  = useRef("");
+  const firstTimeRef = useRef(0);
 
-  // Refs to track the last recognized character and its timestamp
-  const lastCharRef = useRef("");
-  const lastTimeRef = useRef(0);
-
-  // Bounding‐box overlay
-  useEffect(() => {
+  // bounding‐box
+  useEffect(()=>{
     const hands = new Hands({
-      locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+      locateFile: f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
     });
     hands.setOptions({
-      maxNumHands:            1,
-      modelComplexity:        0,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence:  0.5,
-      selfieMode:            true
+      maxNumHands:1,
+      modelComplexity:0,
+      minDetectionConfidence:0.5,
+      minTrackingConfidence:0.5,
+      selfieMode:true
     });
-    hands.onResults((results) => {
-      const vid    = videoRef.current;
-      const canvas = overlayRef.current;
-      const ctx    = canvas.getContext("2d");
-      const w      = vid.clientWidth;
-      const h      = vid.clientHeight;
-      canvas.width  = w;
-      canvas.height = h;
-      canvas.style.width  = `${w}px`;
-      canvas.style.height = `${h}px`;
+    hands.onResults(res=>{
+      const vid=videoRef.current, c=overlayRef.current, ctx=c.getContext("2d");
+      const w=vid.clientWidth, h=vid.clientHeight;
+      c.width=w; c.height=h;
       ctx.clearRect(0,0,w,h);
-      ctx.save();
-      ctx.translate(w,0);
-      ctx.scale(-1,1);
-
-      if (results.multiHandLandmarks?.length) {
-        const lm   = results.multiHandLandmarks[0];
-        const xs   = lm.map(pt => pt.x * w);
-        const ys   = lm.map(pt => pt.y * h);
-        const xMin = Math.min(...xs), xMax = Math.max(...xs);
-        const yMin = Math.min(...ys), yMax = Math.max(...ys);
-        const pad  = 10;
-        ctx.strokeStyle="#0ff";
-        ctx.lineWidth=4;
-        ctx.strokeRect(
-          xMin - pad, yMin - pad,
-          (xMax - xMin) + pad*2,
-          (yMax - yMin) + pad*2
-        );
+      ctx.save(); ctx.translate(w,0); ctx.scale(-1,1);
+      if(res.multiHandLandmarks?.length){
+        const lm=res.multiHandLandmarks[0],
+              xs=lm.map(p=>p.x*w),
+              ys=lm.map(p=>p.y*h),
+              xMin=Math.min(...xs), xMax=Math.max(...xs),
+              yMin=Math.min(...ys), yMax=Math.max(...ys),
+              pad=10;
+        ctx.strokeStyle="#0ff"; ctx.lineWidth=4;
+        ctx.strokeRect(xMin-pad,yMin-pad,(xMax-xMin)+pad*2,(yMax-yMin)+pad*2);
       }
-
       ctx.restore();
     });
-
-    if (videoRef.current) {
-      new Camera(videoRef.current, {
-        onFrame: async () => await hands.send({ image: videoRef.current }),
-        width:640, height:480
+    if(videoRef.current){
+      new Camera(videoRef.current,{
+        onFrame:async()=>await hands.send({image:videoRef.current}),
+        width:640,height:480
       }).start();
     }
-  }, []);
+  },[]);
 
-  // Finger inference with hold-to-repeat logic (downsampled)
-  useEffect(() => {
-    let timer;
-    const vid = videoRef.current;
-
-    async function loop() {
-      try { await vid.play(); } catch {}
-      timer = setInterval(async () => {
-        const W = 320;
-        const H = vid.videoHeight * (320 / vid.videoWidth);
-        const cnv = captureRef.current;
-        cnv.width  = W;
-        cnv.height = H;
-        cnv.getContext("2d").drawImage(vid, 0, 0, W, H);
-        const img = cnv.toDataURL("image/jpeg", 0.6);
-
-        try {
-          const res = await axios.post("/process_finger_frame", { image: img });
-          const char = res.data.action || "";
-          const now = Date.now();
-
-          if (char && char === lastCharRef.current) {
-            // Same char as before: check hold duration
-            if (now - lastTimeRef.current >= 1500) {
-              setSentenceList(prev => [...prev, char]);
-              lastTimeRef.current = now;
-            }
-          } else if (char) {
-            // New char detected: append immediately
-            setSentenceList(prev =>
-              prev[prev.length - 1] === char ? prev : [...prev, char]
-            );
-            lastCharRef.current = char;
-            lastTimeRef.current = now;
+  // inference + hold-to-repeat
+  useEffect(()=>{
+    let id;
+    const vid=videoRef.current;
+    const startLoop=()=>{
+      id=setInterval(async()=>{
+        if(vid.videoWidth===0) return;
+        const W=320, H=vid.videoHeight*(W/vid.videoWidth);
+        const c=captureRef.current;
+        c.width=W; c.height=H;
+        c.getContext("2d").drawImage(vid,0,0,W,H);
+        const img=c.toDataURL("image/jpeg",0.6);
+        const res=await axios.post("/process_finger_frame",{image:img});
+        const char=res.data.action||"";
+        const now=Date.now();
+        if(char===lastCharRef.current){
+          if(now-firstTimeRef.current>=1500){
+            setSentenceList(prev=>[...prev,char]);
+            firstTimeRef.current=now;
           }
-        } catch (e) {
-          console.error("Finger inference error:", e);
+        } else if(char){
+          setSentenceList(prev=>[...prev,char]);
+          lastCharRef.current=char;
+          firstTimeRef.current=now;
         }
-      }, 300);
-    }
-
-    loop();
-    return () => clearInterval(timer);
-  }, []);
+      },300);
+    };
+    vid.addEventListener("playing",startLoop);
+    return ()=>{
+      vid.removeEventListener("playing",startLoop);
+      clearInterval(id);
+    };
+  },[]);
 
   return (
-    <div style={{
-      display:       "flex",
-      flexDirection: "column",
-      alignItems:    "center",
-      padding:       "2vw",
-      background:    "#111",
-      color:         "#fff",
-      minHeight:     "100vh",
-      boxSizing:     "border-box"
-    }}>
-      <h1 style={{ margin:0, fontSize:"clamp(1.5rem,4vw,3rem)" }}>
-        ASL Finger-Sign Translator
-      </h1>
-
-      <div style={{ position:"relative", display:"inline-block", marginTop:"2vh" }}>
-        <video
-          ref={videoRef}
-          style={{ width:"90vw", maxWidth:"960px", borderRadius:"8px" }}
-          playsInline
-          muted
-        />
-        <canvas
-          ref={overlayRef}
-          style={{ position:"absolute", top:0, left:0, pointerEvents:"none" }}
-        />
+    <div style={{padding:"2vw",background:"#111",color:"#fff",textAlign:"center"}}>
+      <h1>ASL Finger-Sign Translator</h1>
+      <div style={{position:"relative",display:"inline-block",marginTop:20}}>
+        <video ref={videoRef} style={{width:"90vw",maxWidth:960,borderRadius:8}} playsInline muted/>
+        <canvas ref={overlayRef} style={{position:"absolute",top:0,left:0,pointerEvents:"none"}}/>
       </div>
-
-      <canvas ref={captureRef} style={{ display:"none" }} />
-
+      <canvas ref={captureRef} style={{display:"none"}}/>
       <div style={{
-        marginTop:   "2vh",
-        width:       "90vw",
-        maxWidth:    "960px",
-        background:  "#000",
-        color:       "#fff",
-        padding:     "1vh",
-        fontSize:    "clamp(1rem,2.5vw,1.5rem)",
-        borderRadius:"4px",
-        textAlign:   "center"
+        marginTop:20,
+        background:"#000",padding:10,
+        fontSize:"clamp(1rem,2.5vw,1.5rem)",
+        borderRadius:4
       }}>
-        {sentenceList.join("") || "Waiting for finger-sign…"}
+        {sentenceList.join("")||"Waiting for finger-sign…"}
       </div>
     </div>
   );
