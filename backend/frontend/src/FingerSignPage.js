@@ -99,6 +99,12 @@ export default function FingerSignPage() {
       }}>
         {sentenceList.join("")||"Waiting for finger-sign…"}
       </div>
+      <footer style={{ marginTop:40, fontSize:"clamp(0.875rem,2vw,1.1rem)" }}>
+        <div>Made with ❤️</div>
+        <div>Pranaav Iyer, Michael Nguyen, Oscar Primitivo, Nick Everett, Griffin Collins</div>
+        <div>Reach out: pranaav.iyer@gmail.com</div>
+        <div>LinkedIn: linkedin.com/in/pranaav-iyer/</div>
+      </footer>
     </div>
   );
 }
