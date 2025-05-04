@@ -12,10 +12,54 @@ export default function App() {
         gap:            "2rem",
         padding:        "1rem 0",
         background:     "#222",
-        boxShadow:     "0 2px 5px rgba(0,0,0,0.5)"
+        boxShadow:      "0 2px 5px rgba(0,0,0,0.5)"
       }}>
-        <Link to="/asl" style={linkStyle}>Real-Time ASL</Link>
-        <Link to="/finger" style={linkStyle}>Finger-Sign Stream</Link>
+        <Link 
+          to="/asl" 
+          style={{
+            ...linkStyle,
+            padding: "0.5rem 1rem",
+            border: "2px solid transparent",
+            borderRadius: "5px",
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.color = "#00d4ff";
+            e.target.style.textDecoration = "underline";
+            e.target.style.borderColor = "#00d4ff";
+            e.target.style.backgroundColor = "rgba(0, 212, 255, 0.2)";
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.color = "#fff";
+            e.target.style.textDecoration = "none";
+            e.target.style.borderColor = "transparent";
+            e.target.style.backgroundColor = "transparent";
+          }}
+        >
+          → ASL Gesture Model ←
+        </Link>
+        <Link 
+          to="/finger" 
+          style={{
+            ...linkStyle,
+            padding: "0.5rem 1rem",
+            border: "2px solid transparent",
+            borderRadius: "5px",
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.color = "#00d4ff";
+            e.target.style.textDecoration = "underline";
+            e.target.style.borderColor = "#00d4ff";
+            e.target.style.backgroundColor = "rgba(0, 212, 255, 0.2)";
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.color = "#fff";
+            e.target.style.textDecoration = "none";
+            e.target.style.borderColor = "transparent";
+            e.target.style.backgroundColor = "transparent";
+          }}
+        >
+          → ASL Alphabet Model ←
+        </Link>
       </nav>
 
       <div style={{
