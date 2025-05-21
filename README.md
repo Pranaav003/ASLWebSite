@@ -13,6 +13,11 @@
 - **Full Finger-Spelling Support**  
   A separate finger-signing LSTM model decodes all 26 letters of the ASL alphabet. Hold a sign for 1.5 seconds to lock in each character, building words and phrases on screen.
 
+DEMO:
+![ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/7418cc67-5bcd-45b7-bc47-4846b0848a7e)
+![gif2-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/293c2e33-9c7b-416c-b5b8-e6d527bf8b5b)
+
+
 Clone & Enter
 git clone https://github.com/Pranaav003/ASLWebSite.git
 cd ASLWebSite/backend
