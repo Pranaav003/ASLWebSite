@@ -19,34 +19,34 @@ DEMO:
 ![gif2-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/293c2e33-9c7b-416c-b5b8-e6d527bf8b5b)
 
 
-Clone & Enter
-git clone https://github.com/Pranaav003/ASLWebSite.git
-cd ASLWebSite/backend
-Python Env & Dependencies
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-Set Environment Variables
-Create a .env file with:
-OPENAI_API_KEY=sk-…
-CAMERA_INDEX=0
-PORT=5001
-Build & Serve Frontend
-cd frontend
-npm ci
-npm run build
-cd ..
-Launch Flask Server
-flask run --host=0.0.0.0 --port=$PORT
-Open http://localhost:5001 in your browser.
-🚀 Deployment
+Clone & Enter  
+git clone https://github.com/Pranaav003/ASLWebSite.git  
+cd ASLWebSite/backend  
+Python Env & Dependencies  
+python3 -m venv venv  
+source venv/bin/activate  
+pip install -r requirements.txt  
+Set Environment Variables  
+Create a .env file with:  
+OPENAI_API_KEY=sk-…  
+CAMERA_INDEX=0  
+PORT=5001  
+Build & Serve Frontend  
+cd frontend  
+npm ci  
+npm run build  
+cd ..  
+Launch Flask Server  
+flask run --host=0.0.0.0 --port=$PORT  
+Open http://localhost:5001 in your browser.  
+🚀 Deployment  
 
-Build Command:
-pip install -r requirements.txt && cd frontend && npm ci && npm run build
-Start Command:
-flask run --host=0.0.0.0 --port=5001
-Environment: Python 3.11, Node 22.x
-All camera capture and inference happens in the browser—no GPU on the server required!
+Build Command:  
+pip install -r requirements.txt && cd frontend && npm ci && npm run build  
+Start Command:  
+flask run --host=0.0.0.0 --port=5001  
+Environment: Python 3.11, Node 22.x  
+All camera capture and inference happens in the browser—no GPU on the server required!  
 
 🤝 Support & Sponsorship
 
